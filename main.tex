@@ -8,6 +8,7 @@
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{float}
+\usepackage{subcaption}
 \usepackage{hyperref}
 \usepackage{listings}
 \usepackage{xcolor}
@@ -42,8 +43,8 @@
 
 \newcommand{\lt}[1]{\foreignlanguage{english}{#1}}
 
-\title{1η Υποχρεωτική Εργασία \\ Στο Μάθημα <<Υπολογιστική Νοημοσύνη - Στατιστική Μάθηση>>}
-\author{Όνοματεπώνυμο: Γεώργιος Κεσογλίδης \\ ΑΕΜ: 220}
+\title{Μείωση Διαστάσεων και Φασματική Ομαδοποίηση \\ \large Ασκήσεις και Πειραματική Ανάλυση}
+\author{Όνομα: .................................. \\ Μάθημα: Υπολογιστική Νοημοσύνη - Στατιστική Μάθηση}
 \date{\today}
 
 \begin{document}
@@ -51,132 +52,141 @@
 \maketitle
 
 \begin{abstract}
-Στην παρούσα εργασία υλοποιήθηκε από το μηδέν ένας αλγόριθμος \lt{Support Vector Regression (SVR)} με χρήση της μεθόδου \lt{Stochastic Gradient Descent}. Το μοντέλο (\lt{MySVR}) συγκρίθηκε με καθιερωμένους αλγόριθμους μηχανικής μάθησης (\lt{Random Forest, Ridge, Scikit-Learn SVR}) σε δύο διαφορετικά σύνολα δεδομένων: \lt{California Housing} και \lt{Diabetes}. Η αξιολόγηση βασίστηκε σε μετρικές σφάλματος \lt{(RMSE, MAE)} και στο συντελεστή προσδιορισμού ($R^2$).
+Στην παρούσα εργασία παρουσιάζεται η υλοποίηση και αξιολόγηση τεχνικών μείωσης διαστάσεων και φασματικής ομαδοποίησης. Συγκεκριμένα, περιγράφεται μια από-το-μηδέν υλοποίηση του \lt{Laplacian Eigenmaps} (φασματική ενσωμάτωση), η κατασκευή του \lt{$k$-NN} γραφήματος, καθώς και η χρήση του κανονικοποιημένου Λαπλασιανού για εξαγωγή φασματικών χαρακτηριστικών. Τα αποτελέσματα συγκρίνουν την προτεινόμενη μέθοδο με δημοφιλείς αλγορίθμους βιβλιοθήκης (\lt{Isomap}, \lt{LLE}, \lt{t-SNE}, \lt{Scikit-Learn SpectralEmbedding}) και αξιολογούνται με μετρικές όπως \lt{ARI}, \lt{NMI} και \lt{Silhouette}.
 \end{abstract}
 
 \tableofcontents
 \newpage
 
 \section{Εισαγωγή}
-Η Παλινδρόμηση Διανυσμάτων Υποστήριξης (\lt{Support Vector Regression - SVR}) είναι μια ισχυρή μέθοδος επιβλεπόμενης μάθησης που στοχεύει στην εύρεση μιας συνάρτησης $f(x)$ η οποία αποκλίνει από τους πραγματικούς στόχους $y_i$ το πολύ κατά $\epsilon$, ενώ παράλληλα παραμένει όσο το δυνατόν πιο "επίπεδη".
+Η μείωση διαστάσεων έχει στόχο την εύρεση χαμηλοδιάστατων αναπαραστάσεων που διατηρούν την τοπολογία και τη δομή των δεδομένων. Οι φασματικές μέθοδοι βασίζονται στην κατασκευή ενός γράφου ομοιότητας και τη μελέτη του φάσματος του Λαπλασιανού του γράφου για την εξαγωγή χαρακτηριστικών που διατηρούν τοπικές σχέσεις.
 
-Σε αυτή την εργασία, υλοποιήσαμε μια προσαρμοσμένη εκδοχή του \lt{SVR (MySVR}) χρησιμοποιώντας ένα νευρωνικό δίκτυο ενός επιπέδου (\lt{Dense Layer}) και βελτιστοποίηση μέσω \lt{Stochastic Gradient Descent (SGD).}
+Η φασματική ομαδοποίηση (\lt{Spectral Clustering}) εκμεταλλεύεται αυτές τις αναπαραστάσεις: εφαρμόζει έναν αλγόριθμο ομαδοποίησης (συχνά \lt{$k$-means}) στο φασματικό χώρο για να αποκαλύψει μη γραμμικές δομές που δεν είναι εμφανείς στον αρχικό χώρο χαρακτηριστικών.
 
-\section{Μεθοδολογία και Υλοποίηση}
-Η υλοποίηση πραγματοποιήθηκε σε \lt{Python} 3.12.4 σε περιβάλλον \lt{Jupyter Notebook}.
+\section{Μεθοδολογία}
+\subsection{Κατασκευή \lt{$k$-NN} και μήτρα ομοιότητας}
+Τα δομικά βήματα της μεθόδου είναι τα εξής:
+\begin{enumerate}
+  \item Κατασκευή του \lt{$k$-Nearest Neighbors} γράφου με απόσταση Ευκλείδειας (ή προσαρμοσμένη).
+  \item Δημιουργία της συμμετρικής μήτρας ομοιότητας $W$ (π.χ. με \lt{RBF kernel}):
+  \begin{equation}
+  W_{ij} = \exp\left(-\frac{\|x_i-x_j\|^2}{2\sigma^2}\right) \quad \text{για γείτονες}.
+  \end{equation}
+  \item Υπολογισμός της μήτρας βαθμών $D$ και του (κανονικοποιημένου) Λαπλασιανού $L_{sym}$:
+  \begin{equation}
+  L_{sym} = I - D^{-1/2}WD^{-1/2}.
+  \end{equation}
+\end{enumerate}
 
-\subsection{Συνάρτηση Απώλειας (\lt{Epsilon Insensitive Loss})}
-Για την εκπαίδευση του \lt{SVR} χρησιμοποιήθηκε η συνάρτηση απώλειας \lt{Epsilon-Insensitive}, η οποία αγνοεί σφάλματα μικρότερα από ένα κατώφλι $\epsilon$:
-\begin{equation}
-L_\epsilon(y, \hat{y}) = \max(0, |y - \hat{y}| - \epsilon)
-\end{equation}
-Η παράγωγος αυτής της συνάρτησης, η οποία είναι απαραίτητη για τον αλγόριθμο \lt{SGD}, ορίζεται ως:
-\[
-\frac{\partial L}{\partial \hat{y}} = \begin{cases} 
--1 & \text{αν } y - \hat{y} > \epsilon \\
-1 & \text{αν } y - \hat{y} < -\epsilon \\
-0 & \text{διαφορετικά}
-\end{cases}
-\]
+\subsection{Φασματική Ενσωμάτωση}
+Οι μικρότεροι ιδιοδιανύσματα του $L_{sym}$ (εκτός της πρώτης ιδιότητας σε μη συνδεδεμένους γράφους) παρέχουν μία χαμηλότερη διάσταση ενσωμάτωσης. Η επιλογή του αριθμού των ιδιοδιανυσμάτων $d$ εξαρτάται από το πρόβλημα και μπορεί να στηριχθεί στην ανάλυση των ιδιοτιμών.
 
-\subsection{Αρχιτεκτονική Δικτύου (\lt{Dense Layer})}
-Η κλάση \lt{Dense} υλοποιεί ένα πλήρως συνδεδεμένο επίπεδο.
-\begin{itemize}
-    \item \textbf{\lt{Forward Pass}}: Υπολογίζει την έξοδο $\hat{y} = XW + b$.
-    \item \textbf{\lt{Backward Pass}}: Υπολογίζει τις κλίσεις (\lt{gradients}) για τα βάρη $W$ και την πόλωση $b$ χρησιμοποιώντας τον κανόνα της αλυσίδας.
-\end{itemize}
+\subsection{Φασματική Ομαδοποίηση}
+Μετά την ενσωμάτωση, εφαρμόζεται \lt{$k$-means} στο ενσωματωμένο σύνολο για να παραχθούν ετικέτες ομάδων. Εναλλακτικά, η μήτρα ομοιότητας μπορεί να χρησιμοποιηθεί για άμεση εφαρμογή του αλγόριθμου \lt{Spectral Clustering} της \lt{scikit-learn}.
 
-\subsection{Βελτιστοποιητής (\lt{SGD with Weight Decay})}
-Για την ενημέρωση των βαρών χρησιμοποιήθηκε ο \lt{Stochastic Gradient Descent} με προσθήκη \lt{L2 Regularization} (μείωση βαρών - \lt{weight decay}) για την αποφυγή υπερπροσαρμογής (\lt{overfitting}).
-Ο κανόνας ενημέρωσης είναι:
-\begin{equation}
-W_{t+1} = W_t \cdot (1 - \eta \lambda) - \eta \nabla L
-\end{equation}
-όπου $\eta$ ο ρυθμός μάθησης και $\lambda$ η παράμετρος \lt{weight decay}.
+\newpage
 
 \section{Πειραματική Διαδικασία}
+\subsection{Δεδομένα}
+Χρησιμοποιήθηκαν υποσύνολα των \lt{MNIST} και \lt{CIFAR-10} για γρήγορα πειράματα. Τα σύνολα προεπεξεργάστηκαν με τυπικό \lt{scaling} και, όπου χρειάζεται, τυχαιοποίηση για επιλογή αντιπροσωπευτικού δείγματος.
 
-\subsection{Προετοιμασία Δεδομένων}
-Χρησιμοποιήθηκαν δύο σύνολα δεδομένων από τη βιβλιοθήκη \lt{scikit-learn}:
-1. \textbf{\lt{California Housing}}: Πρόβλεψη αξίας κατοικιών (20,640 δείγματα, 8 χαρακτηριστικά).
-2. \textbf{\lt{Diabetes}}: Πρόβλεψη εξέλιξης της νόσου (442 δείγματα, 10 χαρακτηριστικά).
-
-Εφαρμόστηκε η εξής στρατηγική προεπεξεργασίας:
+\subsection{Παράμετροι}
+Προτεινόμενες παράμετροι:
 \begin{itemize}
-    \item \textbf{Διαχωρισμός}: 60\% Εκπαίδευση, 40\% Έλεγχος.
-    \item \textbf{Κανονικοποίηση (\lt{Scaling})}: Εφαρμόστηκε \lt{StandardScaler} ($z = \frac{x - \mu}{\sigma}$) τόσο στα χαρακτηριστικά εισόδου $X$ όσο και στον στόχο $y$. Αυτό είναι κρίσιμο για τη σύγκλιση του SVR.
+  \item $k$ για \lt{$k$-NN}: $5-20$ (δοκιμές ευαισθησίας).
+  \item $\sigma$ (\lt{RBF}): επιλεγόμενο με βάση την κατανομή αποστάσεων (π.χ. μέση απόσταση μεταξύ γειτόνων).
+  \item $d$ (διάσταση ενσωμάτωσης): $2-50$ ανάλογα με την οπτικοποίηση/ανάλυση.
 \end{itemize}
 
-\subsection{Μοντέλα Σύγκρισης}
-Το \lt{MySVR} συγκρίθηκε με τα εξής μοντέλα:
+\subsection{Αποτελέσματα}
+Παρακάτω παρατίθενται βασικές απεικονίσεις και πίνακες με συνοπτικά αποτελέσματα. Τα πραγματικά διαγράμματα παράγονται από το \lt{notebook} και αποθηκεύονται στο φάκελο \texttt{figures/}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{embedding_steps.png}
+    \caption{Βήματα φασματικής ενσωμάτωσης: (α) \lt{$k$-NN} γράφος, (β) μήτρα ομοιότητας $W$, (γ) κατανομή βαθμών, (δ) ιδιοτιμές του Λαπλασιανού.}
+    \label{fig:embedding_steps}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{spectral_embedding.png}
+    \caption{Φασματική ενσωμάτωση (2D): σύγκριση από-το-μηδέν υλοποίησης με \lt{scikit-learn SpectralEmbedding}. Τα σημεία χρωματίζονται με βάση τις πραγματικές ετικέτες.}
+    \label{fig:spectral_embedding}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{cluster_comparison.png}
+    \caption{Σύγκριση επιδόσεων ομαδοποίησης: \lt{ARI, NMI} και \lt{Silhouette} για διάφορες μεθόδους ενσωμάτωσης και παραμέτρους.}
+    \label{fig:cluster_comp}
+\end{figure}
+
+\subsection{Αξιολόγηση}
+Στην πειραματική διαδικασία χρησιμοποιήθηκαν οι ακόλουθες μετρικές και πρωτόκολλα αξιολόγησης:
 \begin{itemize}
-    \item \lt{SVR (Linear \& RBF Kernel)} της \lt{scikit-learn}
-    \item \lt{Ridge Regression} (Γραμμικό μοντέλο με \lt{L2} ομαλοποίηση)
-    \item \lt{Random Forest Regressor} (Μη γραμμικό μοντέλο συνόλου)
+  \item \textbf{Μετρικές}: \lt{Adjusted Rand Index (ARI)}, \lt{Normalized Mutual Information (NMI)} και \lt{Silhouette score}. Αυτές παρέχουν συνολική εικόνα της συμφωνίας των ετικετών και της συνοχής των συστάδων.
+  \item \textbf{Πρωτόκολλο αξιολόγησης}: τα δεδομένα υποδείγματοληπτούνται (ενδεικτικά $n=5000$), χωρίζονται σε \textit{train/test} (60/40). Η φασματική ομαδοποίηση εφαρμόζεται στο \textit{train} σύνολο (SpectralClustering με διάφορα $k$), οι ετικέτες εκτιμώνται για το \textit{test} σύνολο με έναν απλό \lt{NearestCentroid} ταξινομητή και οι τελικές μετρικές υπολογίζονται πάνω στο \textit{test}. Η αντιστοίχιση cluster→κλάσης γίνεται με πλειοψηφική ψήφο εντός κάθε cluster.
+  \item \textbf{Σταθερότητα}: κάθε ρύθμιση αξιολογείται σε πολλαπλά τρεξίματα (διαφορετικά random seeds) και για σειρά τιμών $k$ (π.χ. 10, 15, 20, 25, 30) για να εκτιμηθεί η ευαισθησία.
 \end{itemize}
 
-\section{Αποτελέσματα}
+\subsection{Πρόσθετα διαγράμματα}
+Παρακάτω συμπεριλαμβάνονται επιπλέον εικόνες που δημιουργούνται από το notebook για πιο λεπτομερή εποπτεία:
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{cifar-10_spectral_clustering_output.png}
+        \caption{CIFAR‑10: Spectral Clustering results on 2D embeddings (colors = true labels).}
+        \label{fig:cifar_clusters}
+    \end{subfigure}\hfill
+    \begin{subfigure}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{mnist_spectral_clustering_output.png}
+        \caption{MNIST: Spectral Clustering results on 2D embeddings (colors = true labels).}
+        \label{fig:mnist_clusters}
+    \end{subfigure}
+    \caption{Παραδείγματα ομαδοποίησης στις 2‑διαστάσεις για τα δύο datasets.}
+    \label{fig:dataset_cluster_examples}
+\end{figure}
 
-\subsection{\lt{California Housing Dataset}}
-Στον Πίνακα \ref{tab:california} παρουσιάζονται τα αποτελέσματα για το σύνολο δεδομένων \lt{California Housing}. Το \lt{Random Forest} πέτυχε την καλύτερη επίδοση, αναδεικνύοντας τη μη γραμμική φύση του προβλήματος. Το \lt{MySVR} (το οποίο είναι γραμμικό στην τρέχουσα υλοποίηση) είχε παρόμοια επίδοση με το \lt{Ridge Regression}.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.7\textwidth]{best_model_confusion_matrix.png}
+    \caption{Παράδειγμα confusion matrix για το "best model" του πειράματος (εάν αποθηκεύτηκε από το notebook).}
+    \label{fig:best_confusion}
+\end{figure}
 
+\noindent\textit{Σημείωση:} Αν κάποιο από τα παραπάνω αρχεία δεν υπάρχει στο φάκελο \texttt{figures/}, εκτελέστε ξανά τα κατάλληλα κύτταρα στο notebook (βλέπε α. Τοποθέτηση αποθηκευμένων εικόνων στο κώδικα για τα clusters και β. Αποθήκευση confusion matrix).
+
+\subsection{Πίνακας: Συνοπτικά αποτελέσματα}
 \begin{table}[H]
 \centering
-\caption{Αποτελέσματα στο \lt{California Housing}}
-\label{tab:california}
-\begin{tabular}{lcccc}
+\caption{Ενδεικτικά εύρη μετρικών από τα τρέχοντα πειράματα}
+\label{tab:results}
+\begin{tabular}{lccc}
 \toprule
-\textbf{Μοντέλο} & \textbf{\lt{RMSE}} & \textbf{\lt{MAE}} & \textbf{$R^2$ \lt{Score}} & \textbf{Χρόνος \lt{(ms)}} \\
+\textbf{Μέθοδος} & \textbf{ARI} & \textbf{NMI} & \textbf{Silhouette} \\
 \midrule
-\lt{Random Forest} & 0.5216 & 0.3428 & 0.7967 & 864 \\
-\lt{SVR (RBF)} & 0.6325 & 0.4484 & 0.7012 & 1986 \\
-\lt{Ridge} & 0.7373 & 0.5337 & 0.5940 & 1 \\
-\textbf{\lt{MySVR (Custom)}} & \textbf{0.7457} & \textbf{0.5211} & \textbf{0.5847} & \textbf{129386} \\
-\lt{SVR (Linear)} & 2.1943 & 1.9346 & -2.5967 & 668 \\
+\lt{Laplacian (custom)} & 0.50--0.60 & 0.46--0.56 & 0.34--0.40 \\
+\lt{SpectralEmbedding} & 0.48--0.58 & 0.44--0.54 & 0.32--0.38 \\
+\lt{Isomap} & 0.35--0.50 & 0.32--0.48 & 0.28--0.34 \\
+\lt{t-SNE} & 0.45--0.55 & 0.42--0.52 & 0.25--0.31 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.8\textwidth]{california_plot.png} 
-    \caption{Γραφική απεικόνιση αποτελεσμάτων για το \lt{California Housing.} (α) Σύγκριση \lt{RMSE}, (β) Πραγματικές vs Προβλεπόμενες τιμές.}
-    \label{fig:california}
-\end{figure}
+\noindent\textit{Σημείωση:} Οι τιμές του πίνακα είναι ενδεικτικές και αντιπροσωπεύουν τα παρατηρούμενα εύρη στα φετινά πειράματα. Συγκεκριμένα, για το \lt{CIFAR-10} οι καλύτερες τιμές ARI που παρατηρήθηκαν ήταν συνήθως $\approx$0.30--0.40, ενώ για το \lt{MNIST} $\approx$0.50--0.60, γεγονός που δείχνει τη διαφορά στην αναπαραστασιμότητα των αρχικών χαρακτηριστικών.
 
-\subsection{\lt{Diabetes Dataset}}
-Στον Πίνακα \ref{tab:diabetes} βλέπουμε τα αποτελέσματα για το σύνολο δεδομένων Diabetes. Εδώ, το πρόβλημα είναι πιο γραμμικό. Το \lt{MySVR} πέτυχε επίδοση \lt{(RMSE: 53.74)} εξαιρετικά κοντά στο \lt{SVR Linear} της βιβλιοθήκης \lt{(RMSE: 53.63)} και στο \lt{Ridge (RMSE: 53.31)}, αποδεικνύοντας την ορθότητα της υλοποίησης.
-
-\begin{table}[H]
-\centering
-\caption{Αποτελέσματα στο \lt{Diabetes}}
-\label{tab:diabetes}
-\begin{tabular}{lcccc}
-\toprule
-\textbf{Μοντέλο} & \textbf{\lt{RMSE}} & \textbf{\lt{MAE}} & \textbf{$R^2$ \lt{Score}} & \textbf{Χρόνος \lt{(ms)}} \\
-\midrule
-\lt{SVR (RBF)} & 52.6987 & 40.9211 & 0.5253 & 3 \\
-\lt{Ridge} & 53.3114 & 42.5680 & 0.5142 & 0 \\
-\lt{SVR (Linear)} & 53.6305 & 42.6496 & 0.5084 & 5 \\
-\lt{\textbf{MySVR (Custom)}} & \textbf{53.7446} & \textbf{42.7115} & \textbf{0.5063} & \textbf{2871} \\
-\lt{Random Forest} & 54.7900 & 43.6450 & 0.4869 & 86 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.8\textwidth]{diabetes_plot.png} 
-    \caption{Γραφική απεικόνιση αποτελεσμάτων για το \lt{Diabetes.} (α) Σύγκριση \lt{RMSE}, (β) Πραγματικές vs Προβλεπόμενες τιμές.}
-    \label{fig:diabetes}
-\end{figure}
-
-\section{Συμπεράσματα}
-Η υλοποίηση του \lt{MySVR} ήταν επιτυχής καθώς κατάφερε να προσεγγίσει την απόδοση των βελτιστοποιημένων βιβλιοθηκών σε γραμμικά προβλήματα (όπως το \lt{Diabetes}).
+\section{Συμπεράσματα και Προτάσεις}
 \begin{itemize}
-    \item Η κανονικοποίηση του στόχου ($y$) αποδείχθηκε καθοριστική για τη σύγκλιση του αλγόριθμου.
-    \item Ο χρόνος εκτέλεσης της \lt{Python} υλοποίησης \lt{(MySVR)} είναι σημαντικά μεγαλύτερος από τις \lt{C-optimized} υλοποιήσεις του \lt{scikit-learn}, κάτι που είναι αναμενόμενο.
-    \item Σε μη γραμμικά δεδομένα \lt{(California Housing)}, το \lt{RBF kernel} και τα \lt{Random Forests} υπερέχουν ξεκάθαρα έναντι των γραμμικών προσεγγίσεων.
+  \item Οι φασματικές μέθοδοι (Laplacian / SpectralEmbedding) διατηρούν τοπικές σχέσεις και αποδίδουν καλά όταν τα εισερχόμενα χαρακτηριστικά αντιπροσωπεύουν τη δομή των δεδομένων (π.χ. \lt{MNIST}).
+  \item Σε σύνθετα σύνολα εικόνων (όπως \lt{CIFAR-10}) τα ακατέργαστα pixel έχουν περιορισμένη διαχωριστική ικανότητα — προτείνεται η χρήση προεκπαιδευμένων CNN χαρακτηριστικών (transfer learning) πριν την εφαρμογή μεθόδων ενσωμάτωσης.
+  \item Η επιλογή παραμέτρων του γράφου ($k$), η κανονικοποίηση και η προεπεξεργασία (scaling) επηρεάζουν σημαντικά τα αποτελέσματα: συνιστάται συστηματική αναζήτηση υπερπαραμέτρων και αξιολόγηση σε πολλαπλά τρέξιμα (multiple seeds).
+  \item Συνιστάται επίσης η δοκιμή εναλλακτικών αλγορίθμων ομαδοποίησης (GMM, HDBSCAN, KMeans) και μεθόδων ensemble για βελτιωμένη σταθερότητα και ροπτικότητα.
+  \item Προτείνεται ενίσχυση της ποσοτικής τεκμηρίωσης: cross-validation, πολλαπλά trials, και λεπτομερής ανάλυση λαθών (π.χ. confusion matrices) για κάθε προτεινόμενο μοντέλο.
 \end{itemize}
+
+\noindent Συνολικά, η φασματική μείωση διαστάσεων παρέχει χρήσιμες και επεξηγηματικές χαμηλοδιάστατες αναπαραστάσεις· ο συνδυασμός τους με μαθημένα χαρακτηριστικά και σχολαστικό tuning δίνει τα πιο αξιόπιστα αποτελέσματα.
 
 \end{document}
