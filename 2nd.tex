@@ -1,0 +1,213 @@
+\documentclass[a4paper,11pt]{article}
+
+\usepackage[english,greek]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{subcaption}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage[left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm]{geometry}
+
+% Ρυθμίσεις για την εμφάνιση κώδικα
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+
+\lstset{style=mystyle}
+
+\newcommand{\lt}[1]{\foreignlanguage{english}{#1}}
+
+\title{Άσκηση: \lt{KPCA + LDA} \\ Υλοποίηση και Αποτελέσματα}
+\author{Όνοματεπώνυμο: Γεώργιος Κεσογλίδης \\ ΑΕΜ: 220}
+\date{\today}
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Στην παρούσα εργασία παρουσιάζεται η υλοποίηση και η πειραματική αξιολόγηση ενός συνδυασμού μη-γραμμικής μείωσης διαστάσεων (\lt{Kernel PCA}) και (\lt{Linear Discriminant Analysis -- LDA}) για \lt{multi-class image classification}. Χρησιμοποιήθηκαν υποσύνολα του \lt{CIFAR-10}. Η υλοποίηση και οι πειραματικές ρουτίνες έγιναν σε \lt{Python} (\lt{NumPy} / \lt{PyTorch}) μέσα σε \lt{Jupyter Notebook} και τα αποτελέσματα αποθηκεύτηκαν ως εικόνες και πίνακες για την τελική αναφορά.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+\section{Εισαγωγή}
+Στόχος της εργασίας είναι να αξιολογηθεί κατά πόσο η μη-γραμμική μείωση διαστάσεων μέσω του \lt{KPCA} βελτιώνει τη διαχωριστική ικανότητα όταν συνδυαστεί με την \lt{LDA} σε προβλήματα εικόνων (π.χ. \lt{CIFAR-10}). Το κείμενο καλύπτει τη μαθηματική θεμελίωση, την πρακτική υλοποίηση, την πειραματική διαδικασία και την ανάλυση των αποτελεσμάτων.
+
+\section{Μεθοδολογία και Υλοποίηση}
+\subsection{\lt{Kernel PCA} (\lt{KPCA})}
+Χρησιμοποιήθηκε ο \lt{RBF} πυρήνας:
+\begin{equation}
+k(\mathbf{x},\mathbf{y}) = \exp(-\gamma \|\mathbf{x}-\mathbf{y}\|^2).
+\end{equation}
+Στην υλοποίηση του \lt{notebook} υπάρχει η κλάση \lt{KPCA} με τα εξής κρίσιμα σημεία:
+\begin{itemize}
+    \item Υπολογισμός και κεντράρισμα του πίνακα πυρήνα $K$ με τον \lt{RBF} πυρήνα, αποθηκεύοντας τα μέσα για το κεντράρισμα νέων δειγμάτων.
+    \item Ιδιοτιμητική αποσύνθεση του κεντραρισμένου $K_c$ (\lt{scipy.linalg.eigh}), με φιλτράρισμα πολύ μικρών/αρνητικών ιδιοτιμών (παράμετρος \texttt{tol}).
+    \item Κανονικοποίηση ιδιοδιανυσμάτων (διαιρώντας με $\sqrt{\lambda}$) και αποθήκευση των επιλεγμένων ιδιοτιμών/ιδιοδιανυσμάτων.
+\end{itemize}
+
+\subsection{\lt{Linear Discriminant Analysis} (\lt{LDA})}
+Η \lt{LDA} υπολογίζει τους ενδο- ($S_W$) και δια- ($S_B$) διασπορικούς πίνακες και λύνει το γενικευμένο ιδιοτιμητικό πρόβλημα
+\begin{equation}
+S_B \mathbf{w} = \lambda S_W \mathbf{w}.
+\end{equation}
+Στην παρούσα εργασία χρησιμοποιήθηκε μια απλή υλοποίηση (ορίζεται ως \lt{LDAClassifier} στο \lt{notebook}) με τα παρακάτω βασικά βήματα:
+\begin{enumerate}
+    \item Υπολογισμός μέσων ανά κλάση $\mu_c$, συνολικού μέσου $\mu$, και των πινάκων $S_W$ και $S_B$.
+    \item Λύση του γενικευμένου ιδιοτιμητικού προβλήματος (\lt{scipy.linalg.eigh}) και επιλογή των κορυφαίων συνιστωσών \lt{($\text{n\_components}=\min(\text{n\_features},\text{n\_classes}-1)$).}
+    \item Κατασκευή πίνακα προβολής $W$ και προ-υπολογισμός προβαλλόμενων μέσων κλάσεων $\mu_c^\top W$.
+    \item Ταξινόμηση νέων δειγμάτων με βάση το πλησιέστερο προβαλλόμενο μέσο \lt{(nearest-class-mean).}
+\end{enumerate}
+
+\newpage
+
+\section{Πειραματική Διαδικασία}
+\subsection{Δεδομένα}
+Χρησιμοποιήθηκε το σύνολο \lt{CIFAR-10}. Για αποφυγή μεγάλου υπολογιστικού κόστους χρησιμοποιήθηκαν υποσύνολα (π.χ. 2000 δείγματα εκπαίδευσης, 1000 δοκιμής) για την εκπαίδευση του \lt{KPCA}. Έγινε κανονικοποίηση ανά κανάλι (mean/std) και \lt{flatten} για τον υπολογισμό του πυρήνα.
+
+\subsection{Γραφήματα από \lt{KPCA + LDA}}
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.48\textwidth}
+        \centering
+            \includegraphics[width=\textwidth]{results/kpca_eigen_spectrum.png}
+            \caption{\lt{Eigenvalue spectrum of KPCA}}
+    \end{subfigure}\hfill
+    \begin{subfigure}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{results/kpca_2d_train.png}
+            \caption{\lt{KPCA: first two components (train)}}
+    \end{subfigure}
+    \vspace{3mm}
+    \begin{subfigure}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{results/lda_2d_train.png}
+            \caption{\lt{LDA projection (train)}}
+    \end{subfigure}\hfill
+    \begin{subfigure}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{results/cifar10_kpca_lda_scatter.png}
+            \caption{\lt{KPCA+LDA test projection (scatter)}}
+    \end{subfigure}
+    \caption{Κύρια γραφήματα από τα πειράματα}
+    \label{fig:all_plots}
+\end{figure}
+
+\subsection{Σύγκριση με διαφορετικούς κατηγοριοποιητές}
+Παρακάτω παρουσιάζονται συνοπτικά τα αριθμητικά αποτελέσματα από την αξιολόγηση διαφορετικών κατηγοριοποιητών (\lt{accuracy}, \lt{balanced accuracy}, \lt{macro precision/recall/F1}, χρόνοι εκπαίδευσης/πρόβλεψης).
+
+% Σύντομες περιγραφές μοντέλων (μία γραμμή έκαστο)
+\noindent\textbf{Σύντομες περιγραφές των αξιολογηθέντων μοντέλων:}
+\begin{itemize}
+    \item \lt{KPCA + LDA (custom): RBF-KPCA (n\_components=100,} $\gamma=1e-5$) με \lt{custom LDAClassifier} με \lt{nearest-class-mean.}
+    \item \lt{kNN (KPCA): k-NN (k=3)} πάνω στις \lt{KPCA} αναπαραστάσεις.
+    \item \lt{Logistic (KPCA)}: Πολυωνυμική/πολυκατηγορική \lt{Logistic Regression} πάνω στις \lt{KPCA} συνιστώσες.
+    \item \lt{RandomForest (KPCA)}: Σύνολο δέντρων απόφασης \lt{(100 estimators)} πάνω στο KPCA.
+    \item \lt{PCA + LDA (custom)}: Γραμμική \lt{PCA (n\_components=100)} και στη συνέχεια η ίδια custom \lt{LDAClassifier}.
+    \item \lt{kNN (PCA): k-NN (k=3)} πάνω στο\lt{PCA}.
+    \item \lt{SVM (PCA)}: \lt{SVM} με \lt{RBF kernel} πάνω στο \lt{PCA}.
+\end{itemize}
+
+
+\begin{table}[H]
+\centering
+\caption{Σύνοψη αποτελεσμάτων στο \lt{CIFAR-10} (υποσύνολα)}
+\label{tab:results}
+\begin{tabular}{lccccccc}
+	\toprule
+	\textbf{Μοντέλο} & \textbf{\lt{Acc}} & \textbf{\lt{BalAcc}} & \textbf{\lt{Prec$_{mac}$}} & \textbf{\lt{Rec$_{mac}$}} & \textbf{\lt{F1$_{mac}$}} & \textbf{\lt{Fit (s)}} & \textbf{\lt{Pred (s)}} \\
+\midrule
+\lt{KPCA + LDA (custom)} & 0.415 & 0.417 & 0.417 & 0.417 & 0.416 & 0.013 & 0.012 \\
+\lt{RandomForest} (\lt{KPCA}) & 0.324 & 0.325 & 0.332 & 0.325 & 0.320 & 0.433 & 0.049 \\
+\lt{Logistic} (\lt{KPCA}) & 0.304 & 0.308 & 0.343 & 0.308 & 0.274 & 0.048 & 0.001 \\
+\lt{kNN} (\lt{KPCA}) & 0.247 & 0.249 & 0.350 & 0.249 & 0.238 & 0.001 & 0.011 \\
+\lt{PCA + LDA (custom)} & 0.107 & 0.107 & 0.107 & 0.107 & 0.106 & 0.009 & 0.011 \\
+\lt{SVM} (\lt{PCA}) & 0.109 & 0.109 & 0.105 & 0.109 & 0.094 & 0.427 & 0.332 \\
+\lt{kNN} (\lt{PCA}) & 0.108 & 0.113 & 0.100 & 0.113 & 0.089 & 0.001 & 0.020 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{results/cifar10_evaluation_metrics.png}
+        \caption{\lt{Metrics comparison}}
+    \end{subfigure}\hfill
+    \begin{subfigure}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{results/cifar10_best_confusion_norm.png}
+        \caption{\lt{Normalized confusion matrix (best model)}}
+    \end{subfigure}
+    \caption{Σύγκριση μοντέλων και \lt{confusion matrix}}
+\end{figure}
+
+
+\subsection{Σύγκριση με \lt{scikit-learn}}
+Επιπλέον, έγινε άμεση σύγκριση της χειροποίητης υλοποίησης με τις υλοποιήσεις του \lt{scikit-learn} για \lt{KPCA} + \lt{LDA}.
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{results/cifar10_kpca_lda_confusion.png}
+        \caption{\lt{KPCA+LDA confusion matrix (test)}}
+    \end{subfigure} \hfill 
+    \begin{subfigure}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{results/kpca_lda_sklearn_confusion.png}
+        \caption{\lt{Confusion matrix - sklearn KPCA+LDA}}
+    \end{subfigure}
+    \caption{\lt{KPCA+LDA: test set visualizations}}
+    \label{fig:kpca_test_vis}
+\end{figure}
+
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{1.0\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{results/kpca_lda_comparison_scatter.png}
+        \caption{\lt{Custom vs sklearn KPCA+LDA projections}}
+    \end{subfigure}
+    \caption{Σύγκριση της \lt{custom} υλοποίησης με τις υλοποιήσεις του \lt{scikit-learn}}
+    \label{fig:sklearn_compare}
+\end{figure}
+
+\section{Συμπεράσματα}
+Από τα παραχθέντα γραφήματα (\lt{eigen‑spectrum}, \lt{2‑D} προβολές, \lt{confusion matrices}, ανά‑κλάση) εξάγονται τα εξής συμπεράσματα:
+\begin{itemize}
+    \item Το \lt{KPCA+LDA} υπερέχει του \lt{PCA+LDA} στο υποσύνολο $(\approx 41.5\%$ ακρίβεια) με βελτίωση \lt{macro‑F1} και \lt{balanced accuracy.}
+    \item Το \lt{eigen‑spectrum} δείχνει ότι οι πρώτες συνιστώσες συγκεντρώνουν το κύριο σήμα. Η επιλογή \lt{n\_components}=100 χρειάζεται έλεγχο σε μεγαλύτερα δείγματα.
+    \item Συγχέσεις εντοπίζονται σε οπτικά παρόμοιες κλάσεις (π.χ. \lt{cat/dog}). Για βελτίωση απαιτούνται πλουσιότερα χαρακτηριστικά ή περισσότερα δείγματα.
+\end{itemize}
+
+\end{document}
